@@ -29,9 +29,6 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 #define __ASSERT(assertion, message) \
     __print_error(__FILE__, __LINE__, assertion, message)
 
-#define __RAISE_CAPACITY(capacity) \
-    ((capacity) * 2)
-
 #define __VAL_TYPE(vec_ptr) \
     typeof((vec_ptr)->__data[0])
 
@@ -40,6 +37,14 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 
 #define __IT_TYPE(vec_ptr) \
     typeof((vec_ptr)->__data)
+
+#define __RAISE_CAPACITY(size) \
+    ((size) * 2)
+
+#define __RAISE_SIZE(vec_ptr) if ((vec_ptr) && (++((vec_ptr)->__size) > (vec_ptr)->__capacity)) { \
+    (vec_ptr)->__capacity = __RAISE_CAPACITY((vec_ptr)->__size);                                  \
+    (vec_ptr)->__data = realloc((vec_ptr)->__data, __VAL_SIZE(vec_ptr) * (vec_ptr)->__capacity);  \
+}
 
 
 #define vec_template_impl(T) \
@@ -83,15 +88,9 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
     ((vec_ptr)->__capacity = __MAX(0, capacity))
 
 #define vec_push_back(vec_ptr, value) if (vec_ptr) { \
-    ++((vec_ptr)->__size);                                                                           \
-    if ((vec_ptr)->__size > (vec_ptr)->__capacity) {                                                 \
-        (vec_ptr)->__capacity = __RAISE_CAPACITY((vec_ptr)->__size);                                 \
-        (vec_ptr)->__data = realloc((vec_ptr)->__data, __VAL_SIZE(vec_ptr) * (vec_ptr)->__capacity); \
-    }                                                                                                \
-    if ((vec_ptr)->__data == NULL)                                                                   \
-        (vec_ptr)->__data = calloc((vec_ptr)->__capacity, __VAL_SIZE(vec_ptr));                      \
-    (vec_ptr)->__data[(vec_ptr)->__size - 1] = (value);                                              \
-}                                                                                                    \
+    __RAISE_SIZE(vec_ptr);                              \
+    (vec_ptr)->__data[(vec_ptr)->__size - 1] = (value); \
+}
 
 #define vec_empty(vec_ptr) \
     ((vec_ptr)->__size == 0)
@@ -136,17 +135,11 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 
 #define vec_insert(vec_ptr, it_pos, value) if ((vec_ptr) && (it_pos)) { \
     __ASSERT((it_pos) >= vec_begin(vec_ptr) && (it_pos) < vec_end(vec_ptr), "out of range"); \
-    __IT_TYPE(vec_ptr) new_data = calloc(++((vec_ptr)->__size), __VAL_SIZE(vec_ptr));        \
-    __IT_TYPE(vec_ptr) it = new_data;                                                        \
-    __IT_TYPE(vec_ptr) begin = vec_begin(vec_ptr);                                           \
-    __IT_TYPE(vec_ptr) end = vec_end(vec_ptr);                                               \
-    for (; begin != (it_pos); ++begin, ++it)                                                 \
-        *it = *begin;                                                                        \
-    *(it++) = value;                                                                         \
-    for (; begin != end; ++begin, ++it)                                                      \
-        *it = *begin;                                                                        \
-    free((vec_ptr)->__data);                                                                 \
-    (vec_ptr)->__data = new_data;                                                            \
+    __RAISE_SIZE(vec_ptr);                                                                   \
+    const size_t offset = (it_pos) - vec_begin(vec_ptr);                                     \
+    for (size_t i = (vec_ptr)->__size - 1; i >= offset; --i)                                 \
+        (vec_ptr)->__data[i] = (vec_ptr)->__data[i - 1];                                     \
+    (vec_ptr)->__data[offset] = (value);                                                     \
 }
 
 #define vec_erase(vec_ptr, ...) if ((vec_ptr) && !vec_empty(vec_ptr)) { \
@@ -155,17 +148,18 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
     __ASSERT(its_count > 0, "too few arguments to 'vec_erase(vec_ptr, first, last = first)'");   \
     __ASSERT(its_count <= 2, "too many arguments to 'vec_erase(vec_ptr, first, last = first)'"); \
     __IT_TYPE(vec_ptr) first = its[0];                                                           \
-    __IT_TYPE(vec_ptr) last = (first);                                                           \
-    if (its_count == 2) (last) = its[1];                                                         \
-    __ASSERT(last >= first, "'last' must be the final iterator");                                \
     __ASSERT((first) >= vec_begin(vec_ptr) && (first) < vec_end(vec_ptr), "out of range");       \
-    __ASSERT((last) >= vec_begin(vec_ptr) && (last) < vec_end(vec_ptr), "out of range");         \
+    __IT_TYPE(vec_ptr) last = (first);                                                           \
+    if (its_count == 2) {                                                                        \
+         (last) = its[1];                                                                        \
+        __ASSERT((last) >= vec_begin(vec_ptr) && (last) < vec_end(vec_ptr), "out of range");     \
+        __ASSERT(last > first, "'last' must be the final iterator");                             \
+    }                                                                                            \
     __IT_TYPE(vec_ptr) begin = vec_begin(vec_ptr);                                               \
     __IT_TYPE(vec_ptr) end = vec_end(vec_ptr);                                                   \
     (vec_ptr)->__size -= (last - first) + 1;                                                     \
     __IT_TYPE(vec_ptr) new_data = calloc((vec_ptr)->__size, __VAL_SIZE(vec_ptr));                \
-    __IT_TYPE(vec_ptr) it = new_data;                                                            \
-    for (; begin != end; ++begin) {                                                              \
+    for (__IT_TYPE(vec_ptr) it = new_data; begin != end; ++begin) {                              \
         if (begin < first || begin > last)                                                       \
             *(it++) = *begin;                                                                    \
     }                                                                                            \
@@ -174,10 +168,7 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 }
 
 #define pop_back(vec_ptr) if (!vec_empty(vec_ptr)) { \
-    __IT_TYPE(vec_ptr) new_data = calloc(--((vec_ptr)->__size), __VAL_SIZE(vec_ptr)); \
-    memcpy(new_data, (vec_ptr)->__data, __VAL_SIZE(vec_ptr) * (vec_ptr)->__size);     \
-    free((vec_ptr)->__data);                                                          \
-    (vec_ptr)->__data = new_data;                                                     \
+    --((vec_ptr)->__size); \
 }
 
 #define vec_resize(vec_ptr, size) if (vec_ptr) { \

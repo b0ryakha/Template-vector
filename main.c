@@ -35,7 +35,7 @@ int main() {
         printf("[%zu] = %zu: size: %zu, capacity: %zu\n", i, (i * 20), vec_size(vec), vec_capacity(vec));
     }
 
-    vec_insert(vec, vec_begin(vec) + 3, 228);
+    vec_insert(vec, vec_begin(vec) + 2, 228);
 
     printf("\ninserted: %d, size: %zu", vec_at(vec, 3), vec_size(vec));
 
