@@ -1,6 +1,8 @@
 ## Template vector
 > A template vector in the C programming language using a preprocessor.
 
+A header only lib for container vector<T>.
+
 ---
 
 ## API
