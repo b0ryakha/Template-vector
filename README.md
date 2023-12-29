@@ -6,7 +6,12 @@
 ## API
 #### constructor:
 ```c++
-vector(T) vec_name = vec_create(T, value...);
+// global area ===============
+typedef T T_typedef;
+vec_template_impl(T_typedef);
+// ===========================
+
+vector(T_typedef) vec_name = vec_create(T_typedef, value...);
 ```
 #### destructor:
 ```c++
