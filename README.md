@@ -102,7 +102,7 @@ vec_swap(vec1_name, vec2_name);
 ```
 #### resize:
 ```c++
-
+vec_resize(vec_name, size);
 ```
 
 ---
