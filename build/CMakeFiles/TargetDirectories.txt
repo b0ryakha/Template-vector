@@ -1,0 +1,3 @@
+/home/b0ryakha/Workspace/Template-vector/build/CMakeFiles/vector.dir
+/home/b0ryakha/Workspace/Template-vector/build/CMakeFiles/edit_cache.dir
+/home/b0ryakha/Workspace/Template-vector/build/CMakeFiles/rebuild_cache.dir

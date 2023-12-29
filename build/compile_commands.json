@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/b0ryakha/Workspace/Template-vector/build",
+  "command": "/usr/bin/clang -O3 -DNDEBUG -o CMakeFiles/vector.dir/main.c.o -c /home/b0ryakha/Workspace/Template-vector/main.c",
+  "file": "/home/b0ryakha/Workspace/Template-vector/main.c",
+  "output": "CMakeFiles/vector.dir/main.c.o"
+}
+]
