@@ -44,8 +44,9 @@ int main() {
         printf("*it = %d\n", *it);
 
     vec_erase(vec, vec_begin(vec), vec_begin(vec) + 1);
-    pop_back(vec);
+    vec_pop_back(vec);
     printf("\nerased & poped vec:\n");
+
     for (const int* it = vec_cbegin(vec), *end = vec_cend(vec); it != end; ++it)
         printf("*it = %d\n", *it);
 

@@ -69,111 +69,153 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
     __VECTOR_ALLOC_##T((T[]){ __VA_ARGS__ }, sizeof((T[]){ __VA_ARGS__ }) / sizeof(T))
 
 #define vec_remove(vec_ptr) if (vec_ptr) { \
-    free((vec_ptr)->__data);                     \
-    (vec_ptr)->__data = NULL;                    \
-    free(vec_ptr);                               \
-    (vec_ptr) = NULL;                            \
+    free((vec_ptr)->__data);               \
+    (vec_ptr)->__data = NULL;              \
+    free(vec_ptr);                         \
+    (vec_ptr) = NULL;                      \
 }
 
-#define vec_at(vec_ptr, index) \
-    (__ASSERT(((index) >= 0 && (index) < (vec_ptr)->__size), "out of range"), (vec_ptr)->__data[index])
+#define vec_at(vec_ptr, index) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"),    \
+    __ASSERT(((index) >= 0 && (index) < (vec_ptr)->__size), "out of range"), \
+    (vec_ptr)->__data[index]                                                 \
+)
 
-#define vec_size(vec_ptr) \
-    ((vec_ptr)->__size)
+#define vec_size(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    (vec_ptr)->__size                                                     \
+)
 
-#define vec_capacity(vec_ptr) \
-    ((vec_ptr)->__capacity)
+#define vec_capacity(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    (vec_ptr)->__capacity                                                 \
+)
 
-#define vec_reserve(vec_ptr, capacity) \
-    ((vec_ptr)->__capacity = __MAX(0, capacity))
+#define vec_reserve(vec_ptr, capacity) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"); \
+    ((vec_ptr)->__capacity = __MAX(0, capacity));                         \
+}                                                                         \
+while(0);
 
-#define vec_push_back(vec_ptr, value) if (vec_ptr) { \
-    __RAISE_SIZE(vec_ptr);                              \
-    (vec_ptr)->__data[(vec_ptr)->__size - 1] = (value); \
-}
+#define vec_push_back(vec_ptr, value) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"); \
+    __RAISE_SIZE(vec_ptr);                                                \
+    (vec_ptr)->__data[(vec_ptr)->__size - 1] = (value);                   \
+}                                                                         \
+while(0);
 
-#define vec_empty(vec_ptr) \
-    ((vec_ptr)->__size == 0)
+#define vec_empty(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    (vec_ptr)->__size == 0                                                \
+)
 
-#define vec_front(vec_ptr) \
-    (__ASSERT(!vec_empty(vec_ptr), "out of range"), (vec_ptr)->__data[0])
+#define vec_front(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    __ASSERT(!vec_empty(vec_ptr), "out of range"),                        \
+    (vec_ptr)->__data[0]                                                  \
+)
 
-#define vec_back(vec_ptr) \
-    (__ASSERT(!vec_empty(vec_ptr), "out of range"), (vec_ptr)->__data[(vec_ptr)->__size - 1])
+#define vec_back(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    __ASSERT(!vec_empty(vec_ptr), "out of range"),                        \
+    (vec_ptr)->__data[(vec_ptr)->__size - 1]                              \
+)
 
-#define vec_data(vec_ptr) \
-    ((vec_ptr)->__data)
+#define vec_data(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    (vec_ptr)->__data                                                     \
+)
 
-#define vec_begin(vec_ptr) \
-    ((vec_ptr)->__data)
+#define vec_begin(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    (vec_ptr)->__data                                                     \
+)
 
-#define vec_end(vec_ptr) \
-    ((vec_ptr)->__data + (vec_ptr)->__size)
+#define vec_end(vec_ptr) ( \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    (vec_ptr)->__data + (vec_ptr)->__size                                 \
+)
 
 #define vec_cbegin(vec_ptr) \
-    ((const __VAL_TYPE(vec_ptr)*)vec_begin(vec_ptr))
+    ((const __IT_TYPE(vec_ptr))vec_begin(vec_ptr))
 
 #define vec_cend(vec_ptr) \
-    ((const __VAL_TYPE(vec_ptr)*)vec_end(vec_ptr))
+    ((const __IT_TYPE(vec_ptr))vec_end(vec_ptr))
 
-#define vec_shrink_to_fit(vec_ptr) if (vec_ptr) { \
-    (vec_ptr)->__capacity = (vec_ptr)->__size;                                                   \
-    if (!vec_empty(vec_ptr))                                                                     \
-        (vec_ptr)->__data = realloc((vec_ptr)->__data, __VAL_SIZE(vec_ptr) * (vec_ptr)->__size); \
-}
+#define vec_shrink_to_fit(vec_ptr) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"),                    \
+    (vec_ptr)->__capacity = (vec_ptr)->__size;                                               \
+    (vec_ptr)->__data = realloc((vec_ptr)->__data, __VAL_SIZE(vec_ptr) * (vec_ptr)->__size); \
+}                                                                                            \
+while(0);
 
-#define vec_clear(vec_ptr) if (vec_ptr) { \
-    free((vec_ptr)->__data);  \
-    (vec_ptr)->__data = NULL; \
-    (vec_ptr)->__size = 0;    \
-}
+#define vec_clear(vec_ptr) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"), \
+    (vec_ptr)->__size = 0;                                                \
+}                                                                         \
+while(0);
 
-#define vec_emplace(vec_ptr, it_pos, value) if ((vec_ptr) && (it_pos)) { \
+#define vec_emplace(vec_ptr, it_pos, value) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"),                    \
+    __ASSERT(it_pos, "bad argument #2 (vector<T>* expected, got null)"),                     \
     __ASSERT((it_pos) >= vec_begin(vec_ptr) && (it_pos) < vec_end(vec_ptr), "out of range"); \
     *(it_pos) = value;                                                                       \
-}
+}                                                                                            \
+while(0);
 
-#define vec_insert(vec_ptr, it_pos, value) if ((vec_ptr) && (it_pos)) { \
+#define vec_insert(vec_ptr, it_pos, value) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"),                    \
+    __ASSERT(it_pos, "bad argument #2 (vector<T>* expected, got null)"),                     \
     __ASSERT((it_pos) >= vec_begin(vec_ptr) && (it_pos) < vec_end(vec_ptr), "out of range"); \
     __RAISE_SIZE(vec_ptr);                                                                   \
     const size_t offset = (it_pos) - vec_begin(vec_ptr);                                     \
     for (size_t i = (vec_ptr)->__size - 1; i >= offset; --i)                                 \
         (vec_ptr)->__data[i] = (vec_ptr)->__data[i - 1];                                     \
     (vec_ptr)->__data[offset] = (value);                                                     \
-}
+}                                                                                            \
+while(0);
 
-#define vec_erase(vec_ptr, ...) if ((vec_ptr) && !vec_empty(vec_ptr)) { \
-    __IT_TYPE(vec_ptr) its[] = { __VA_ARGS__ };                                                  \
-    const size_t its_count = sizeof(its) / sizeof(its[0]);                                       \
-    __ASSERT(its_count > 0, "too few arguments to 'vec_erase(vec_ptr, first, last = first)'");   \
-    __ASSERT(its_count <= 2, "too many arguments to 'vec_erase(vec_ptr, first, last = first)'"); \
-    __IT_TYPE(vec_ptr) first = its[0];                                                           \
-    __ASSERT((first) >= vec_begin(vec_ptr) && (first) < vec_end(vec_ptr), "out of range");       \
-    __IT_TYPE(vec_ptr) last = (first);                                                           \
-    if (its_count == 2) {                                                                        \
-         (last) = its[1];                                                                        \
-        __ASSERT((last) >= vec_begin(vec_ptr) && (last) < vec_end(vec_ptr), "out of range");     \
-        __ASSERT(last > first, "'last' must be the final iterator");                             \
-    }                                                                                            \
-    __IT_TYPE(vec_ptr) begin = vec_begin(vec_ptr);                                               \
-    __IT_TYPE(vec_ptr) end = vec_end(vec_ptr);                                                   \
-    (vec_ptr)->__size -= (last - first) + 1;                                                     \
-    __IT_TYPE(vec_ptr) new_data = calloc((vec_ptr)->__size, __VAL_SIZE(vec_ptr));                \
-    for (__IT_TYPE(vec_ptr) it = new_data; begin != end; ++begin) {                              \
-        if (begin < first || begin > last)                                                       \
-            *(it++) = *begin;                                                                    \
-    }                                                                                            \
-    free((vec_ptr)->__data);                                                                     \
-    (vec_ptr)->__data = new_data;                                                                \
-}
+#define vec_erase(vec_ptr, ...) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)");                            \
+    if (!vec_empty(vec_ptr)) {                                                                       \
+        __IT_TYPE(vec_ptr) its[] = { __VA_ARGS__ };                                                  \
+        const size_t its_count = sizeof(its) / sizeof(its[0]);                                       \
+        __ASSERT(its_count > 0, "too few arguments to 'vec_erase(vec_ptr, first, last = first)'");   \
+        __ASSERT(its_count <= 2, "too many arguments to 'vec_erase(vec_ptr, first, last = first)'"); \
+        __IT_TYPE(vec_ptr) first = its[0];                                                           \
+        __ASSERT((first) >= vec_begin(vec_ptr) && (first) < vec_end(vec_ptr), "out of range");       \
+        __IT_TYPE(vec_ptr) last = (first);                                                           \
+        if (its_count == 2) {                                                                        \
+            (last) = its[1];                                                                         \
+            __ASSERT((last) >= vec_begin(vec_ptr) && (last) < vec_end(vec_ptr), "out of range");     \
+            __ASSERT(last > first, "'last' must be the final iterator");                             \
+        }                                                                                            \
+        __IT_TYPE(vec_ptr) begin = vec_begin(vec_ptr);                                               \
+        __IT_TYPE(vec_ptr) end = vec_end(vec_ptr);                                                   \
+        (vec_ptr)->__size -= (last - first) + 1;                                                     \
+        __IT_TYPE(vec_ptr) new_data = calloc((vec_ptr)->__size, __VAL_SIZE(vec_ptr));                \
+        for (__IT_TYPE(vec_ptr) it = new_data; begin != end; ++begin) {                              \
+            if (begin < first || begin > last)                                                       \
+                *(it++) = *begin;                                                                    \
+        }                                                                                            \
+        free((vec_ptr)->__data);                                                                     \
+        (vec_ptr)->__data = new_data;                                                                \
+    }                                                                                                \
+}                                                                                                    \
+while(0);
 
-#define pop_back(vec_ptr) if (!vec_empty(vec_ptr)) { \
-    --((vec_ptr)->__size); \
-}
+#define vec_pop_back(vec_ptr) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"); \
+    if (!vec_empty(vec_ptr))                                              \
+        --((vec_ptr)->__size);                                            \
+}                                                                         \
+while(0);
 
-#define vec_resize(vec_ptr, size) if (vec_ptr) { \
+#define vec_resize(vec_ptr, size) do { \
+    __ASSERT(vec_ptr, "bad argument #1 (vector<T>* expected, got null)"); \
     \
-}
+}                                                                         \
+while(0);
 
 #define vec_swap(vec_ptr1, vec_ptr2) do { \
     __ASSERT((vec_ptr1) && (vec_ptr2), "one of the passed 'vector_ptrs' is NULL"); \
