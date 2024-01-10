@@ -104,6 +104,14 @@ vec_swap(vec1_name, vec2_name);
 ```c++
 vec_resize(vec_name, size);
 ```
+#### copy:
+```c++
+vec_copy(vec_name, target_vec);
+```
+#### move:
+```c++
+vec_move(vec_name, target_vec);
+```
 
 ---
 

@@ -77,4 +77,41 @@ int main() {
         printf("\"%s\" ", vec_at(strings2, i));
 
     vec_remove(strings);
+
+    vector(int) vec2 = vec_create(int, 1, 2, 3, 4);
+
+    printf("\nemplace test:\n");
+    for (size_t i = 0; i < vec_size(vec2); ++i)
+        printf("%d ", vec_at(vec2, i));
+
+    printf("\n");
+    vec_emplace(vec2, vec_begin(vec2) + 1, 10);
+
+    for (size_t i = 0; i < vec_size(vec2); ++i)
+        printf("%d ", vec_at(vec2, i));
+
+    printf("\n\nmove & copy:\n");
+    vector(int) a = vec_create(int, 1, 2, 3);
+    vector(int) b = vec_create(int, 6, 7, 8, 9, 10);
+
+    printf("a: ");
+    for (size_t i = 0; i < vec_size(a); ++i)
+        printf("%d ", vec_at(a, i));
+
+    printf("\nb  (sz: %zu, cp: %zu): ", vec_size(b), vec_capacity(b));
+    for (size_t i = 0; i < vec_size(b); ++i)
+        printf("%d ", vec_at(b, i));
+
+    vector(int) b_copy = vec_create(int);
+    printf("\nb_copy (sz: %zu, cp: %zu)", vec_size(b_copy), vec_capacity(b_copy));
+    vec_copy(b, b_copy);
+    vec_move(a, b);
+
+    printf("\n\nb (a -> b) (sz: %zu, cp: %zu): ", vec_size(b), vec_capacity(b));
+    for (size_t i = 0; i < vec_size(b); ++i)
+        printf("%d ", vec_at(b, i));
+
+    printf("\nb_copy (sz: %zu, cp: %zu): ", vec_size(b_copy), vec_capacity(b_copy));
+    for (size_t i = 0; i < vec_size(b_copy); ++i)
+        printf("%d ", vec_at(b_copy, i));
 }
