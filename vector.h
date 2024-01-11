@@ -9,7 +9,7 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
     if (assertion) return;
 
     char buffer[256];
-    snprintf(buffer, 256, "%s:%zu: error: %s\n", file_path, line_number, message);
+    snprintf(buffer, sizeof(buffer), "%s:%zu: error: %s\n", file_path, line_number, message);
 
     fprintf(stderr, "%s", buffer);
     exit(1);
@@ -18,7 +18,12 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 #define __ASSERT(assertion, message) \
     __print_error(__FILE__, __LINE__, assertion, message)
 
-#define __IS_COMPATIBLE(T, U) _Generic(*((T*)0), U: true, default: false)
+#define __IS_COMPATIBLE(T, U) \
+    _Generic(*((T*)NULL), U: true, default: false)
+
+#define __IS_CONST(L_value) \
+    _Generic(&(L_value), typeof(L_value) const*: true, default: false)
+
 #define __SCOPE(body, ...) do { body } while(0)
 #define __MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -54,7 +59,7 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 #define __IT_VALID_CHECK(vec_ptr, it) __SCOPE(                                                                               \
     __ASSERT((it) != NULL, "vector<T>::iterator expected, but got null");                                                    \
     __ASSERT(__IS_COMPATIBLE(typeof(it), __IT_TYPE(vec_ptr)), "vector<T>::iterator expected, but got incompatible pointer"); \
-    __ASSERT((it) >= vec_begin(vec_ptr) && (it) < vec_end(vec_ptr), "out of range");                                         \
+    __ASSERT((it) >= vec_cbegin(vec_ptr) && (it) < vec_cend(vec_ptr), "out of range");                                       \
 )                                                                                                                            \
 
 #define __COMPATIBLE_CHECK(vec_ptr1, vec_ptr2) \
@@ -65,6 +70,7 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
     typedef struct {                                                \
         size_t __size;                                              \
         size_t __capacity;                                          \
+        void (*__elem_destructor)(T* elem);                         \
         T* __data;                                                  \
     } vec__##T;                                                     \
     \
@@ -72,6 +78,7 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
         vec__##T* vec = malloc(sizeof(vec__##T));                   \
         vec->__size = size;                                         \
         vec->__capacity = size;                                     \
+        vec->__elem_destructor = NULL;                              \
         vec->__data = calloc(vec->__capacity, sizeof(T));           \
         memcpy(vec->__data, init_list, sizeof(T) * size);           \
         return vec;                                                 \
@@ -84,6 +91,7 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 
 #define vec_remove(this) __SCOPE( \
     if (this) {                   \
+        vec_clear(this);          \
         free((this)->__data);     \
         (this)->__data = NULL;    \
         free(this);               \
@@ -107,10 +115,11 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
     (this)->__capacity       \
 )                            \
 
-#define vec_reserve(this, capacity) __SCOPE(   \
-    __VEC_VALID_CHECK(this);                   \
-    ((this)->__capacity = __MAX(0, capacity)); \
-)                                              \
+#define vec_reserve(this, capacity) __SCOPE(                    \
+    __VEC_VALID_CHECK(this);                                    \
+    ((this)->__capacity = __MAX((this)->__capacity, capacity)); \
+    __REALLOC_TO_CAP(this);                                     \
+)                                                               \
 
 #define vec_push_back(this, value) __SCOPE(       \
     __VEC_VALID_CHECK(this);                      \
@@ -123,64 +132,78 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
     (this)->__size == 0      \
 )                            \
 
-#define vec_begin(this) (    \
-    __VEC_VALID_CHECK(this), \
-    (this)->__data           \
-)                            \
+#define vec_cbegin(this) \
+    ((const __VAL_TYPE(this)*)(this)->__data)
 
-#define vec_end(this) (               \
-    __VEC_VALID_CHECK(this),          \
-    ((this)->__data + (this)->__size) \
-)                                     \
+#define vec_cend(this) \
+    ((const __VAL_TYPE(this)*)((this)->__data + (this)->__size))
 
-#define vec_data(this) vec_begin(this)
+#define vec_begin(this) (                                                                     \
+    __VEC_VALID_CHECK(this),                                                                  \
+    __ASSERT(!__IS_CONST(*this), "attempt call begin() on a read-only object, try cbegin()"), \
+    (this)->__data                                                                            \
+)                                                                                             \
+
+#define vec_end(this) (                                                                   \
+    __VEC_VALID_CHECK(this),                                                              \
+    __ASSERT(!__IS_CONST(*this), "attempt call end() on a read-only object, try cend()"), \
+    ((this)->__data + (this)->__size)                                                     \
+)                                                                                         \
+
+#define vec_data(this) ((this)->__data)
 
 #define vec_front(this) (                       \
     __VEC_VALID_CHECK(this),                    \
     __ASSERT(!vec_empty(this), "out of range"), \
-    *vec_begin(this)                            \
+    *vec_cbegin(this)                           \
 )
 
 #define vec_back(this) (                        \
     __VEC_VALID_CHECK(this),                    \
     __ASSERT(!vec_empty(this), "out of range"), \
-    *(vec_end(this) - 1)                        \
+    *(vec_cend(this) - 1)                       \
 )                                               \
 
-#define vec_cbegin(this) \
-    ((const __IT_TYPE(this))vec_begin(this))
+#define vec_shrink_to_fit(this) __SCOPE(                                         \
+    __VEC_VALID_CHECK(this);                                                     \
+    if ((this)->__capacity != (this)->__size) {                                  \
+        (this)->__capacity = (this)->__size;                                     \
+        __IT_TYPE(this) tmp_data = calloc((this)->__capacity, __VAL_SIZE(this)); \
+        memcpy(tmp_data, (this)->__data, __VAL_SIZE(this) * (this)->__capacity); \
+        free((this)->__data);                                                    \
+        (this)->__data = tmp_data;                                               \
+    }                                                                            \
+)                                                                                \
 
-#define vec_cend(this) \
-    ((const __IT_TYPE(this))vec_end(this))
-
-#define vec_shrink_to_fit(this) __SCOPE(        \
-    __VEC_VALID_CHECK(this);                    \
-    if ((this)->__capacity != (this)->__size) { \
-        (this)->__capacity = (this)->__size;    \
-        __REALLOC_TO_CAP(this);                 \
-    }                                           \
-)                                               \
-
-#define vec_clear(this) __SCOPE( \
-    __VEC_VALID_CHECK(this);     \
-    (this)->__size = 0;          \
-)                                \
+#define vec_clear(this) __SCOPE(                           \
+    __VEC_VALID_CHECK(this);                               \
+    if ((this)->__elem_destructor != NULL) {               \
+        for (size_t i = 0; i < (this)->__size; ++i)        \
+            (this)->__elem_destructor(&(this)->__data[i]); \
+    }                                                      \
+    (this)->__size = 0;                                    \
+)                                                          \
 
 #define vec_emplace(this, it_pos, value) __SCOPE( \
     __VEC_VALID_CHECK(this);                      \
     __IT_VALID_CHECK(this, it_pos);               \
+    if ((this)->__elem_destructor != NULL)        \
+        (this)->__elem_destructor(it_pos);        \
     *(it_pos) = value;                            \
 )                                                 \
 
-#define vec_insert(this, it_pos, value) __SCOPE(          \
-    __VEC_VALID_CHECK(this);                              \
-    __IT_VALID_CHECK(this, it_pos);                       \
-    __RAISE_SIZE(this);                                   \
-    const size_t offset = (it_pos) - vec_begin(this);     \
-    for (size_t i = (this)->__size - 1; i >= offset; --i) \
-        (this)->__data[i] = (this)->__data[i - 1];        \
-    (this)->__data[offset] = (value);                     \
-)                                                         \
+//TODO: mb for -> memmove
+#define vec_insert(this, it_pos, value) __SCOPE(            \
+    __VEC_VALID_CHECK(this);                                \
+    __IT_VALID_CHECK(this, it_pos);                         \
+    __RAISE_SIZE(this);                                     \
+    const size_t offset = (it_pos) - vec_cbegin(this);      \
+    for (size_t i = (this)->__size - 1; i >= offset; --i)   \
+        (this)->__data[i] = (this)->__data[i - 1];          \
+    if ((this)->__elem_destructor != NULL)                  \
+        (this)->__elem_destructor(&(this)->__data[offset]); \
+    (this)->__data[offset] = (value);                       \
+)                                                           \
 
 #define vec_erase(this, ...) do {                                                            \
     __VEC_VALID_CHECK(this);                                                                 \
@@ -195,36 +218,43 @@ static inline void __print_error(const char* file_path, size_t line_number, bool
 }                                                                                            \
 while(0);                                                                                    \
 
-//TODO:
-#define __ERASE_POS(this, position) __SCOPE( \
-    __IT_VALID_CHECK(this, position);        \
-)                                            \
+//TODO: mb for -> memmove
+#define __ERASE_POS(this, position) __SCOPE(                    \
+    __IT_VALID_CHECK(this, position);                           \
+    const size_t last_border = ((position) - vec_cbegin(this)); \
+    for (size_t i = last_border; i < (this)->__size; ++i)       \
+        (this)->__data[i] = (this)->__data[i + 1];              \
+    if ((this)->__elem_destructor != NULL)                      \
+        (this)->__elem_destructor(position);                    \
+    --((this)->__size);                                         \
+)                                                               \
 
-//TODO: improve calloc(size, ...)
-//https://blog.weghos.com/skia/include/c++/9/bits/vector.tcc.html#_ZNSt6vector8_M_eraseEN9__gnu_cxx17__normal_iteratorINSt12_Vector_baseIT_T0_E7pointerESt6vectorIS3_S4_EEE
-#define __ERASE_RANGE(this, first, last) __SCOPE(                        \
-    __IT_VALID_CHECK(this, first);                                       \
-    __IT_VALID_CHECK(this, last);                                        \
-    __ASSERT(last > first, "'last' must be the final iterator");         \
-    __IT_TYPE(this) begin = vec_begin(this);                             \
-    __IT_TYPE(this) end = vec_end(this);                                 \
-    (this)->__size -= ((last) - (first)) + 1;                            \
-    __IT_TYPE(this) new_data = calloc((this)->__size, __VAL_SIZE(this)); \
-    for (__IT_TYPE(this) it = new_data; begin != end; ++begin) {         \
-        if (begin < first || begin > last)                               \
-            *(it++) = *begin;                                            \
-    }                                                                    \
-    free((this)->__data);                                                \
-    (this)->__data = new_data;                                           \
-)                                                                        \
+//TODO: mb for -> memmove
+#define __ERASE_RANGE(this, first, last) __SCOPE(                     \
+    __IT_VALID_CHECK(this, first);                                    \
+    __IT_VALID_CHECK(this, last);                                     \
+    __ASSERT((last) >= (first), "'last' must be the final iterator"); \
+    const size_t diff = ((last) - (first));                           \
+    const size_t last_border = ((last) - vec_cbegin(this));           \
+    for (size_t i = (this)->__size - 1; i > last_border; --i)         \
+        (this)->__data[i - diff - 1] = (this)->__data[i];             \
+    if ((this)->__elem_destructor != NULL) {                          \
+        for (; first <= last; ++first)                                \
+            (this)->__elem_destructor(first);                         \
+    }                                                                 \
+    (this)->__size -= diff + 1;                                       \
+)                                                                     \
 
 //TODO: #define vec_resize(vec_ptr, size)
 
-#define vec_pop_back(this) __SCOPE( \
-    __VEC_VALID_CHECK(this);        \
-    if (!vec_empty(this))           \
-        --((this)->__size);         \
-)                                   \
+#define vec_pop_back(this) __SCOPE(                       \
+    __VEC_VALID_CHECK(this);                              \
+    if (!vec_empty(this)) {                               \
+        if ((this)->__elem_destructor != NULL)            \
+            (this)->__elem_destructor(vec_end(this) - 1); \
+        --((this)->__size);                               \
+    }                                                     \
+)                                                         \
 
 #define vec_swap(this, target) __SCOPE(               \
     __VEC_VALID_CHECK(this);                          \
@@ -246,17 +276,28 @@ while(0);                                                                       
     (this) = NULL;                             \
 )                                              \
 
-#define vec_copy(this, target) __SCOPE(                                                    \
-    __VEC_VALID_CHECK(this);                                                               \
-    __VEC_VALID_CHECK(target);                                                             \
-    __COMPATIBLE_CHECK(this, target);                                                      \
-    if ((target)->__capacity < (this)->__size) {                                           \
-        (target)->__capacity = (this)->__size;                                             \
-        __REALLOC_TO_CAP(target);                                                          \
-    }                                                                                      \
-    (target)->__size = (this)->__size;                                                     \
-    memcpy((target)->__data, (this)->__data, sizeof(__VAL_SIZE(this)) * (target)->__size); \
-)                                                                                          \
+#define vec_copy(this, target) __SCOPE(                                            \
+    __VEC_VALID_CHECK(this);                                                       \
+    __VEC_VALID_CHECK(target);                                                     \
+    __COMPATIBLE_CHECK(this, target);                                              \
+    if ((target)->__capacity < (this)->__size) {                                   \
+        (target)->__capacity = (this)->__size;                                     \
+        __REALLOC_TO_CAP(target);                                                  \
+    }                                                                              \
+    (target)->__size = (this)->__size;                                             \
+    memcpy((target)->__data, (this)->__data, __VAL_SIZE(this) * (target)->__size); \
+)                                                                                  \
+
+#define vec_set_elem_destructor(this, destructor_ptr) __SCOPE(                                \
+    __VEC_VALID_CHECK(this);                                                                  \
+    __ASSERT((destructor_ptr) != NULL, "void (*destructor)(T* elem) expected, but got null"); \
+    (this)->__elem_destructor = (destructor_ptr);                                             \
+)                                                                                             \
+
+#define vec_remove_elem_destructor(this) __SCOPE( \
+    __VEC_VALID_CHECK(this);                      \
+    (this)->__elem_destructor = NULL;             \
+)                                                 \
 
 
 vec_template_impl(int);
