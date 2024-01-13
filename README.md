@@ -90,7 +90,7 @@ vec_insert(pos_it, value);
 ```
 #### erase:
 ```c++
-vec_erase(vec_name, first_it[, last_it]);
+vec_erase(vec_name, first, last = first);
 ```
 #### pop back:
 ```c++
@@ -111,6 +111,10 @@ vec_copy(vec_name, target_vec);
 #### move:
 ```c++
 vec_move(vec_name, target_vec);
+```
+#### set element destructor:
+```c++
+vec_set_elem_destructor(vec_name, function*);
 ```
 
 ---

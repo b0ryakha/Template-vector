@@ -9,6 +9,7 @@ typedef int* int_ptr;
 vec_template_impl(int_ptr);
 void destructor_int(int_ptr* elem) {
     free(*elem);
+    printf("~int*()\n");
 }
 
 int main() {
@@ -41,7 +42,7 @@ int main() {
 
     vec_insert(vec, vec_begin(vec) + 2, 228);
 
-    printf("\ninserted: %d, size: %zu", vec_at(vec, 3), vec_size(vec));
+    printf("\ninserted: %d, size: %zu", vec_at(vec, 2), vec_size(vec));
 
     printf("\nconst iterators loop:\n");
     for (const int* it = vec_cbegin(vec), *end = vec_cend(vec); it != end; ++it)
@@ -144,13 +145,42 @@ int main() {
     volatile int_ptr ptr3 = malloc(sizeof(int));
     *ptr3 = 30;
 
+    volatile int_ptr ptr4 = malloc(sizeof(int));
+    *ptr4 = 40;
+
+    volatile int_ptr ptr5 = malloc(sizeof(int));
+    *ptr5 = 50;
+
     vector(int_ptr) ptrs = vec_create(int_ptr, ptr1, ptr2);
     vec_set_elem_destructor(ptrs, destructor_int);
 
     vec_push_back(ptrs, ptr3);
+    vec_push_back(ptrs, ptr4);
+    vec_push_back(ptrs, ptr5);
 
     for (size_t i = 0; i < vec_size(ptrs); ++i)
         printf("%d ", *vec_at(ptrs, i));
 
+    printf("\n\nerase(begin + 2):");
+    vec_erase(ptrs, vec_begin(ptrs) + 2);
+
+    for (size_t i = 0; i < vec_size(ptrs); ++i)
+        printf("%d ", *vec_at(ptrs, i));
+
+    printf("\n\npop_back: ");
+    vec_pop_back(ptrs);
+
+    for (size_t i = 0; i < vec_size(ptrs); ++i)
+        printf("%d ", *vec_at(ptrs, i));
+
+    printf("\nremove ptrs:\n");
+
     vec_remove(ptrs);
+
+    const vector(int) new_vec = vec_create(int, 1, 2, 3);
+
+    vec_at(new_vec, 1) = 100;
+    printf("\nnew_vec[1] = %d\n", vec_at(new_vec, 1));
+
+    vec_remove(new_vec);
 }
