@@ -1,8 +1,8 @@
 ### :exclamation: Disclaimer:
   - In no case do not use default operators, all assign and copy are carried out only through special "functions".
-  - Almost all "functions" are actually MACRO.
+  - Almost all "functions" are actually MACRO (inline).
   - Not all errors appear at compile-time, many errors will be handling only at run-time.
-  - If necessary, the constructor and destructor are called, if any, otherwise the garbage will be stored in memory.
+  - If necessary, the default constructor & destructor are called, if there are any, otherwise the garbage will be stored in memory.
   - By default lib has vector implementations for default types, to disable add #define NO_DEFAULT_IMPL before including the lib.
   - By default, the lib uses the DEPRECIATION_COEF value of 2, you can change it before including lib.
 
@@ -58,11 +58,11 @@
 <details><summary>:cyclone: Non-member functions</summary>
 
   - [vector()](#vector)
-  - [vec_iter()](#vec_iter)
-  - [vec_const_iter()](#vec_const_iter)
-  - [vec_set_elem_constructor()](#vec_set_elem_constructor)
+  - [vec_it()](#vec_it)
+  - [vec_const_it()](#vec_const_it)
+  - [vec_set_def_constructor()](#vec_set_def_constructor)
   - [vec_remove_elem_constructor()](#vec_remove_elem_constructor)
-  - [vec_set_elem_destructor()](#vec_set_elem_destructor)
+  - [vec_set_destructor()](#vec_set_destructor)
   - [vec_remove_elem_destructor()](#vec_remove_elem_destructor)
   </details>
 
@@ -280,43 +280,43 @@ Erases all elements from the container, leaves the 'capacity' of the vector unch
 
 #### <a name="insert"></a> ```insert```
 ```lua
-vec_insert(this: vector(T), pos: vec_iter(this), value: T): vec_iter(this)
-vec_insert(this: vector(T), pos: vec_iter(this), count: size_t, value: T): vec_iter(this)
+vec_insert(this: vector(T), pos: vec_it(this), value: T): vec_it(this)
+vec_insert(this: vector(T), pos: vec_it(this), count: size_t, value: T): vec_it(this)
 ```
-| Name  | Type                 | Description                                     |
-| :---: | :---:                | :---:                                           |
-| this  | ```vector(T)```      | Target                                          |
-| pos   | ```vec_iter(this)``` | The place where the insertion will be performed |
-| count | ```size_t```         | The number of objects to insert                 |
-| value | ```T```              | Inserted value                                  |
+| Name  | Type               | Description                                     |
+| :---: | :---:              | :---:                                           |
+| this  | ```vector(T)```    | Target                                          |
+| pos   | ```vec_it(this)``` | The place where the insertion will be performed |
+| count | ```size_t```       | The number of objects to insert                 |
+| value | ```T```            | Inserted value                                  |
 
 (1) Inserts 'value' before 'pos', returns iterator pointing to the inserted element.
 (2) Inserts 'count' copies of the 'value' before 'pos', returns iterator pointing to the first element inserted, or pos if 'count' == 0.
 
 #### <a name="emplace"></a> ```emplace```
 ```lua
-vec_emplace(this: vector(T), pos: vec_iter(this), value: T): vec_iter(this)
+vec_emplace(this: vector(T), pos: vec_it(this), value: T): vec_it(this)
 ```
-| Name  | Type                 | Description                                   |
-| :---: | :---:                | :---:                                         |
-| this  | ```vector(T)```      | Target                                        |
-| pos   | ```vec_iter(this)``` | The place where the emplace will be performed |
-| value | ```T```              | Emplaced value                                |
+| Name  | Type               | Description                                   |
+| :---: | :---:              | :---:                                         |
+| this  | ```vector(T)```    | Target                                        |
+| pos   | ```vec_it(this)``` | The place where the emplace will be performed |
+| value | ```T```            | Emplaced value                                |
 
 Warning: there is a discrepancy with the STL.
 Emplace 'value' before 'pos', returns iterator pointing to the emplaced element.
 
 #### <a name="erase"></a> ```erase```
 ```lua
-vec_erase(this: vector(T), pos: vec_iter(this)): vec_iter(this)
-vec_erase(this: vector(T), first: vec_iter(this), last: vec_iter(this)): vec_iter(this)
+vec_erase(this: vector(T), pos: vec_it(this)): vec_it(this)
+vec_erase(this: vector(T), first: vec_it(this), last: vec_it(this)): vec_it(this)
 ```
-| Name  | Type                 | Description                                     |
-| :---: | :---:                | :---:                                           |
-| this  | ```vector(T)```      | Target                                          |
-| pos   | ```vec_iter(this)``` | The place to be removed                         |
-| first | ```vec_iter(this)``` | The starting point of the range, inclusive      |
-| last  | ```vec_iter(this)``` | The finishing point of the range, not inclusive |
+| Name  | Type               | Description                                     |
+| :---: | :---:              | :---:                                           |
+| this  | ```vector(T)```    | Target                                          |
+| pos   | ```vec_it(this)``` | The place to be removed                         |
+| first | ```vec_it(this)``` | The starting point of the range, inclusive      |
+| last  | ```vec_it(this)``` | The finishing point of the range, not inclusive |
 
 (1) Removes the element at 'pos', returns iterator following the last removed element.
 (2) Removes the elements in the range ['first', 'last'), returns iterator following the last removed element.
@@ -389,9 +389,9 @@ vector(T)
 
 The data type with the "template" parameter, is similar to std::vector<T>.
 
-#### <a name="vec_iter"></a> ```vec_iter```
+#### <a name="vec_it"></a> ```vec_it```
 ```lua
-vec_iter(this: vector(T))
+vec_it(this: vector(T))
 ```
 | Name  | Type            | Description |
 | :---: | :---:           | :---:       |
@@ -399,9 +399,9 @@ vec_iter(this: vector(T))
 
 The data type with the "template" parameter, is similar to std::vector<T>::iterator.
 
-#### <a name="vec_const_iter"></a> ```vec_const_iter```
+#### <a name="vec_const_it"></a> ```vec_const_it```
 ```lua
-vec_const_iter(this: vector(T))
+vec_const_it(this: vector(T))
 ```
 | Name  | Type            | Description |
 | :---: | :---:           | :---:       |
@@ -409,16 +409,16 @@ vec_const_iter(this: vector(T))
 
 The data type with the "template" parameter, is similar to std::vector<T>::const_iterator.
 
-#### <a name="vec_set_elem_constructor"></a> ```vec_set_elem_constructor```
+#### <a name="vec_set_def_constructor"></a> ```vec_set_def_constructor```
 ```lua
-vec_set_elem_constructor(this: vector(T), constructor: void (*)(T*))
+vec_set_def_constructor(this: vector(T), constructor: T (*)())
 ```
-| Name        | Type               | Description                                                     |
-| :---:       | :---:              | :---:                                                           |
-| this        | ```vector(T)```    | Target                                                          |
-| constructor | ```void (*)(T*)``` | Pointer to the function that will be called during construction |
+| Name        | Type            | Description                                                             |
+| :---:       | :---:           | :---:                                                                   |
+| this        | ```vector(T)``` | Target                                                                  |
+| constructor | ```T (*)()```   | Pointer to the function that will be called during default construction |
 
-Sets the constructor for container elements, otherwise the default constructor will be called for default types.
+Sets the default constructor for container elements, otherwise the default constructor will be called for default types.
 
 #### <a name="vec_remove_elem_constructor"></a> ```vec_remove_elem_constructor```
 ```lua
@@ -430,9 +430,9 @@ vec_remove_elem_constructor(this: vector(T))
 
 Unsets the constructor for container elements.
 
-#### <a name="vec_set_elem_destructor"></a> ```vec_set_elem_destructor```
+#### <a name="vec_set_destructor"></a> ```vec_set_destructor```
 ```lua
-vec_set_elem_destructor(this: vector(T), destructor: void (*)(T*))
+vec_set_destructor(this: vector(T), destructor: void (*)(T*))
 ```
 | Name       | Type               | Description                                                    |
 | :---:      | :---:              | :---:                                                          |

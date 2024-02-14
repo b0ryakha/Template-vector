@@ -5,15 +5,15 @@ A type-safe and easy-to-use dynamic array with an interface similar to the STL i
 
 Any non-zero vector looks like this in memory:
 
-                                     const
-                                   / ‾ ‾ ‾ \    | user's const pointer & it
-                                  v         \   v
-              +------+----------+---------+ - - - ÷ - - - - - - - - -÷ - - - - - - - - ÷
-              | size | capacity | data... | cdata : elem_constructor : elem_destructor :
-              +------+----------+---------+ - - - ÷ - - - - - - - - -÷ - - - - - - - - ÷
+                                      const
+                                    / ‾ ‾ ‾ \   | user's const pointer & it
+                                   v         \  v
+              +------+----------+---------+ - - - ÷ - - - - - - - - - - -÷ - - - - - - - - ÷
+              | size | capacity | data... | cdata : elem_def_constructor : elem_destructor :
+              +------+----------+---------+ - - - ÷ - - - - - - - - - - -÷ - - - - - - - - ÷
                                   ^
                                   | user's pointer & it
-The total overhead is `2 * sizeof(size_t) + 2 * sizeof(void (*)(void*)) + sizeof(void*)` per vector.
+The total overhead is `2 * sizeof(size_t) + sizeof(void (*)()) + sizeof(void (*)(void*)) + sizeof(void*)` per vector.
 
 ---
 
