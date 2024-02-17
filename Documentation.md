@@ -2,9 +2,7 @@
   - In no case do not use default operators, all assign and copy are carried out only through special "functions".
   - Almost all "functions" are actually MACRO (inline).
   - Not all errors appear at compile-time, many errors will be handling only at run-time.
-  - If necessary, the default constructor & destructor are called, if there are any, otherwise the garbage will be stored in memory.
   - By default lib has vector implementations for default types, to disable add #define NO_DEFAULT_IMPL before including the lib.
-  - By default, the lib uses the DEPRECIATION_COEF value of 2, you can change it before including lib.
 
 ---
 
@@ -60,7 +58,6 @@
   - [vector()](#vector)
   - [vec_it()](#vec_it)
   - [vec_const_it()](#vec_const_it)
-  - [vec_set_def_constructor()](#vec_set_def_constructor)
   - [vec_remove_elem_constructor()](#vec_remove_elem_constructor)
   - [vec_set_destructor()](#vec_set_destructor)
   - [vec_remove_elem_destructor()](#vec_remove_elem_destructor)
@@ -408,17 +405,6 @@ vec_const_it(this: vector(T))
 | this  | ```vector(T)``` | Target      |
 
 The data type with the "template" parameter, is similar to std::vector<T>::const_iterator.
-
-#### <a name="vec_set_def_constructor"></a> ```vec_set_def_constructor```
-```lua
-vec_set_def_constructor(this: vector(T), constructor: T (*)())
-```
-| Name        | Type            | Description                                                             |
-| :---:       | :---:           | :---:                                                                   |
-| this        | ```vector(T)``` | Target                                                                  |
-| constructor | ```T (*)()```   | Pointer to the function that will be called during default construction |
-
-Sets the default constructor for container elements, otherwise the default constructor will be called for default types.
 
 #### <a name="vec_remove_elem_constructor"></a> ```vec_remove_elem_constructor```
 ```lua

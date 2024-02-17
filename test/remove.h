@@ -2,7 +2,7 @@
 #include "../vector.h"
 
 void destructor(int* this) {
-    INFO("~int()");
+    printf("[INFO]: ~int()\n");
 }
 
 void test_remove() {

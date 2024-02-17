@@ -5,17 +5,14 @@
     printf("[TEST]: "#test_func"() - successful\n"); \
 })
 
-#define ASSERT(assertion) ({                                                           \
-    if (!(assertion)) {                                                                \
-        char buffer[256];                                                              \
-        snprintf(buffer, sizeof(buffer), "%s:%d: test failure\n", __FILE__, __LINE__); \
-        fprintf(stderr, "%s", buffer);                                                 \
-        exit(EXIT_FAILURE);                                                            \
-    }                                                                                  \
+#define ASSERT(assertion) ({                                                                            \
+    if (!(assertion)) {                                                                                 \
+        char buffer[256];                                                                               \
+        snprintf(buffer, sizeof(buffer), "%s:%d: test("#assertion") is fail\n", __FILE__, __LINE__); \
+        fprintf(stderr, "%s", buffer);                                                                  \
+        exit(EXIT_FAILURE);                                                                             \
+    }                                                                                                   \
 })
-
-#define INFO(message) \
-    printf("[INFO]: %s\n", message);
 
 #define DUMP(vec) ({                                                              \
     if (vec == NULL) {                                                            \

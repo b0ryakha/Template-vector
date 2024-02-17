@@ -35,33 +35,6 @@
     _Generic(&(L_value), __typeof__(L_value) const*: true, default: false)
 #endif
 
-#ifndef _MAX
-#define _MAX(x, y) ({       \
-    __typeof__(x) _x = (x); \
-    __typeof__(y) _y = (y); \
-    (_x > _y ? _x : _y);    \
-})
-#endif
-
-#ifndef _TO_INT64
-#include <stdint.h>
-#define _TO_INT64(x) ({                     \
-    int64_t _res;                           \
-    const double _x = (x);                  \
-    memcpy(&_res, &(_x), 8);                \
-    (_res ^ ((uint64_t)(_res >> 63) >> 1)); \
-})
-#endif
-
-#ifndef DEPRECIATION_COEF
-#define DEPRECIATION_COEF 2
-#endif
-
-#ifndef _DEPRECIATION_COEF_CHECK
-#define _DEPRECIATION_COEF_CHECK() \
-    _ASSERT(_TO_INT64(DEPRECIATION_COEF) >= _TO_INT64(1.5), "'DEPRECIATION_COEF' must be >= 1.5");
-#endif
-
 #ifndef _MEMORY_VALID_CHECK
 #define _MEMORY_VALID_CHECK(ptr) \
     _ASSERT((ptr) != NULL, "memory exhaustion")
@@ -81,12 +54,8 @@
 #define _VEC_V_TYPE(vec_ptr) __typeof__(*((vec_ptr)->_data))
 #define _VEC_V_SIZE(vec_ptr) sizeof(*((vec_ptr)->_data))
 
-#define _VEC_RAISE_CAP(vec_ptr) ({                                               \
-    const double _new_cap = _MAX((vec_ptr)->_capacity, 1) * (DEPRECIATION_COEF); \
-    const size_t _decimal = ((size_t)(_new_cap * 10)) % 10;                      \
-    (vec_ptr)->_capacity = (size_t)_new_cap;                                     \
-    if (_decimal >= 5) ++(vec_ptr)->_capacity;                                   \
-})
+#define _VEC_RAISE_CAP(vec_ptr) \
+    (vec_ptr)->_capacity = ((vec_ptr)->_capacity == 0) ? 1 : (vec_ptr)->_capacity * 2;
 
 #define _VEC_REALLOC_TO_CAP(vec_ptr) ({                                                        \
     (vec_ptr)->_data = realloc((vec_ptr)->_data, _VEC_V_SIZE(vec_ptr) * (vec_ptr)->_capacity); \
@@ -118,30 +87,35 @@
 #define _VEC_COMP_CHECK(vec_ptr1, vec_ptr2) \
     _ASSERT(_IS_COMPATIBLE(_VEC_V_TYPE(vec_ptr1), _VEC_V_TYPE(vec_ptr2)), "vectors store incompatible types.")
 
-#define _VEC_DESTRUCT_ALL(this) ({                    \
-    if ((this)->_elem_destructor != NULL) {           \
-        for (size_t _i = 0; _i < (this)->_size; ++_i) \
-        (this)->_elem_destructor(&(this)->_data[_i]); \
-    }                                                 \
+#define _VEC_DESTRUCT_ALL(this) ({                        \
+    if ((this)->_elem_destructor) {                       \
+        for (size_t _i = 0; _i < (this)->_size; ++_i)     \
+            (this)->_elem_destructor(&(this)->_data[_i]); \
+    }                                                     \
 })
+
+typedef struct {
+    size_t _size;
+    size_t _capacity;
+    void (*_elem_destructor)(void*);
+    void* _data;
+    const void* _cdata;
+} __vec_unconst_hack;
 
 #define vec_template_impl(T)                                    \
     typedef struct {                                            \
         size_t _size;                                           \
         size_t _capacity;                                       \
-        T (*_elem_def_constructor)();                           \
         void (*_elem_destructor)(T*);                           \
         T* _data;                                               \
         const T* _cdata;                                        \
     } _vec_##T;                                                 \
     \
     _vec_##T* _VEC_ALLOC_##T(const T* init_list, size_t size) { \
-        _DEPRECIATION_COEF_CHECK();                             \
         _vec_##T* vec = malloc(sizeof(_vec_##T));               \
         _MEMORY_VALID_CHECK(vec);                               \
         vec->_size = size;                                      \
         vec->_capacity = size;                                  \
-        vec->_elem_def_constructor = NULL;                      \
         vec->_elem_destructor = NULL;                           \
         if (size > 0) {                                         \
             vec->_data = calloc(vec->_capacity, sizeof(T));     \
@@ -167,7 +141,6 @@
     _MEMORY_VALID_CHECK(_new_vec);                                                         \
     _new_vec->_size = (target)->_size;                                                     \
     _new_vec->_capacity = (target)->_size;                                                 \
-    _new_vec->_elem_def_constructor = (target)->_elem_def_constructor;                     \
     _new_vec->_elem_destructor = (target)->_elem_destructor;                               \
     if (_new_vec->_size > 0) {                                                             \
         _new_vec->_data = calloc(_new_vec->_capacity, _VEC_V_SIZE(target));                \
@@ -201,10 +174,12 @@
     (this)->_capacity;        \
 })
 
-#define vec_reserve(this, capacity) ({                       \
-    _VEC_VALID_CHECK(this);                                  \
-    ((this)->_capacity = _MAX((this)->_capacity, capacity)); \
-    _VEC_REALLOC_TO_CAP(this);                               \
+#define vec_reserve(this, capacity) ({    \
+    _VEC_VALID_CHECK(this);               \
+    if ((capacity) > (this)->_capacity) { \
+        (this)->_capacity = (capacity);   \
+        _VEC_REALLOC_TO_CAP(this);        \
+    }                                     \
 })
 
 #define vec_push_back(this, value) ({           \
@@ -221,8 +196,10 @@
 #define vec_it(this) __typeof__(vec_begin(this))
 #define vec_const_it(this) __typeof__((this)->_cdata)
 
-#define vec_data(this) \
-    _Generic(this, __typeof__(*this) const*: (this)->_cdata, default: (this)->_data)
+#define vec_data(this) ({                                                             \
+    _VEC_VALID_CHECK(this);                                                           \
+    _Generic(this, __typeof__(*this) const*: (this)->_cdata, default: (this)->_data); \
+})
 
 #define vec_at(this, index) (*({                                        \
     _VEC_VALID_CHECK(this);                                             \
@@ -230,8 +207,15 @@
     (vec_data(this) + (index));                                         \
 }))
 
-#define vec_cbegin(this) (this)->_cdata
-#define vec_cend(this) ((this)->_cdata + (this)->_size)
+#define vec_cbegin(this) ({ \
+    _VEC_VALID_CHECK(this); \
+    (this)->_cdata;         \
+})
+
+#define vec_cend(this) ({             \
+    _VEC_VALID_CHECK(this);           \
+    ((this)->_cdata + (this)->_size); \
+})
 
 #define vec_begin(this) ({  \
     _VEC_VALID_CHECK(this); \
@@ -277,16 +261,16 @@
     _VEC_VALID_CHECK(this);                           \
     _VEC_IT_VALID_CHECK(this, pos);                   \
     if ((pos) < vec_cend(this)) {                     \
-        if ((this)->_elem_destructor != NULL)         \
-        (this)->_elem_destructor(pos);                \
-        *(pos) = value;                               \
+        if ((this)->_elem_destructor)                 \
+            (this)->_elem_destructor(pos);            \
+        *(pos) = (value);                             \
         (vec_data(this) + ((pos) - vec_begin(this))); \
     }                                                 \
 })
 
 #define vec_emplace_back(this, value) ({                             \
     _VEC_VALID_CHECK(this);                                          \
-    if ((this)->_elem_destructor != NULL)                            \
+    if ((this)->_elem_destructor)                                    \
         (this)->_elem_destructor(&(this)->_data[(this)->_size - 1]); \
     (this)->_data[(this)->_size - 1] = (value);                      \
 })
@@ -294,38 +278,39 @@
 #define vec_insert(...) \
     _OVERLOADING_4(__VA_ARGS__, _VEC_INSERT_COUNT, _VEC_INSERT)(__VA_ARGS__)
 
-#define _VEC_INSERT_COUNT(this, pos, count, value) ({                                  \
-    _VEC_VALID_CHECK(this);                                                            \
-    _VEC_IT_VALID_CHECK(this, pos);                                                    \
-    vec_it(this) _pos = (pos);                                                         \
-    if ((count) > 0) {                                                                 \
-        _VEC_RAISE_SIZE(this, count);                                                  \
-        memmove((_pos) + (count), _pos, _VEC_V_SIZE(this) * (vec_end(this) - (_pos))); \
-        vec_it(this) _it = (_pos);                                                     \
-        vec_it(this) _end = (_pos) + (count);                                          \
-        for (; _it != _end; ++_it) *_it = (value);                                     \
-    }                                                                                  \
-    ((count) ? (vec_data(this) + ((_pos) - vec_begin(this))) : (_pos));                \
-})
-
 #define _VEC_INSERT(this, pos, value) \
     _VEC_INSERT_COUNT(this, pos, 1, value)
+
+#define _VEC_INSERT_COUNT(this, pos, count, value) ({                                                                 \
+    _VEC_VALID_CHECK(this);                                                                                           \
+    _VEC_IT_VALID_CHECK(this, pos);                                                                                   \
+    size_t _offset = 0;                                                                                               \
+    if ((count) > 0) {                                                                                                \
+        if ((pos) >= vec_end(this))                                                                                   \
+            _offset = (count);                                                                                        \
+        _VEC_RAISE_SIZE(this, count);                                                                                 \
+        memmove((pos) + (count) - _offset, (pos) - _offset, _VEC_V_SIZE(this) * (vec_end(this) - ((pos) - _offset))); \
+        vec_it(this) _it = (pos) - _offset;                                                                           \
+        vec_it(this) _end = _it + (count);                                                                            \
+        for (; _it != _end; ++_it) *_it = (value);                                                                    \
+    }                                                                                                                 \
+    ((count > 0) ? (vec_begin(this) + ((pos) - vec_begin(this))) : pos);                                              \
+})
 
 #define vec_erase(...) \
     _OVERLOADING_3(__VA_ARGS__, _VEC_ERASE_RANGE, _VEC_ERASE_POS)(__VA_ARGS__)
 
-#define _VEC_ERASE_POS(this, pos) ({                                                   \
-    _VEC_VALID_CHECK(this);                                                            \
-    _VEC_IT_VALID_CHECK(this, pos);                                                    \
-    _VEC_IT_NCONST_CHECK(pos);                                                         \
-    vec_it(this) _pos = (pos);                                                         \
-    if ((_pos) < vec_cend(this)) {                                                     \
-        if ((this)->_elem_destructor != NULL)                                          \
-        (this)->_elem_destructor(_pos);                                                \
-        memmove(_pos, (_pos) + 1, _VEC_V_SIZE(this) * ((vec_end(this) - (_pos)) - 1)); \
-        --((this)->_size);                                                             \
-    }                                                                                  \
-    (vec_data(this) + ((_pos) - vec_begin(this)));                                     \
+#define _VEC_ERASE_POS(this, pos) ({                                                \
+    _VEC_VALID_CHECK(this);                                                         \
+    _VEC_IT_VALID_CHECK(this, pos);                                                 \
+    _VEC_IT_NCONST_CHECK(pos);                                                      \
+    if ((pos) < vec_cend(this)) {                                                   \
+        if ((this)->_elem_destructor)                                               \
+            (this)->_elem_destructor(pos);                                          \
+        memmove(pos, (pos) + 1, _VEC_V_SIZE(this) * ((vec_end(this) - (pos)) - 1)); \
+        --((this)->_size);                                                          \
+    }                                                                               \
+    (vec_begin(this) + ((pos) - vec_begin(this)));                                  \
 })
 
 #define _VEC_ERASE_RANGE(this, first, last) ({                              \
@@ -335,87 +320,76 @@
     _VEC_IT_NCONST_CHECK(first);                                            \
     _VEC_IT_NCONST_CHECK(last);                                             \
     _ASSERT((last) >= (first), "'last' must be the final iterator");        \
-    if ((this)->_elem_destructor != NULL) {                                 \
+    if ((this)->_elem_destructor) {                                         \
         for (vec_it(this) _it = (first); _it < (last); ++_it)               \
             (this)->_elem_destructor(_it);                                  \
     }                                                                       \
     memmove(first, (last), _VEC_V_SIZE(this) * ((vec_end(this) - (last)))); \
-    (this)->_size -= ((last) - (first));                                    \
-    (vec_data(this) + ((last) - vec_begin(this)));                          \
+    const size_t _diff = (last) - (first);                                  \
+    (this)->_size -= _diff;                                                 \
+    (vec_begin(this) + (((last) - vec_begin(this)) - _diff));               \
 })
 
 #define vec_resize(...) \
     _OVERLOADING_3(__VA_ARGS__, _VEC_RESIZE_WITH_VALUE, _VEC_RESIZE)(__VA_ARGS__)
 
-#define _VEC_RESIZE(this, count) ({                              \
-    _VEC_RESIZE_WITH_VALUE(this, count, _Generic(*(this)->_data, \
-        const char*: "\0",                                       \
-        char*: "\0",                                             \
-        char: '\0',                                              \
-        default: (_VEC_V_TYPE(this)){0}                          \
-    ));                                                          \
+#define _VEC_RESIZE(this, count) \
+    _VEC_RESIZE_WITH_VALUE(this, count, (_VEC_V_TYPE(this)){0});
+
+#define _VEC_RESIZE_WITH_VALUE(this, count, value) ({           \
+    _VEC_VALID_CHECK(this);                                     \
+    if ((this)->_size != (count)) {                             \
+        if ((count) > (this)->_size) {                          \
+            while ((this)->_capacity < (count))                 \
+                _VEC_RAISE_CAP(this);                           \
+            _VEC_REALLOC_TO_CAP(this);                          \
+            for (size_t _i = (this)->_size; _i < (count); ++_i) \
+                (this)->_data[_i] = value;                      \
+        }                                                       \
+        else if ((this)->_elem_destructor) {                    \
+            for (size_t _i = (count); _i < (this)->_size; ++_i) \
+                (this)->_elem_destructor(&(this)->_data[_i]);   \
+        }                                                       \
+        (this)->_size = (count);                                \
+    }                                                           \
 })
 
-#define _VEC_RESIZE_WITH_VALUE(this, count, value) ({                    \
-    _VEC_VALID_CHECK(this);                                              \
-    if ((this)->_size != (count)) {                                      \
-        if ((count) > (this)->_size) {                                   \
-            while ((this)->_capacity < (count))                          \
-                _VEC_RAISE_CAP(this);                                    \
-            _VEC_REALLOC_TO_CAP(this);                                   \
-            for (size_t _i = (this)->_size; _i < (count); ++_i) {        \
-                if ((this)->_elem_def_constructor != NULL)               \
-                    (this)->_data[_i] = (this)->_elem_def_constructor(); \
-                else                                                     \
-                    (this)->_data[_i] = value;                           \
-            }                                                            \
-        }                                                                \
-        else if ((this)->_elem_destructor != NULL) {                     \
-            for (size_t _i = (count); _i < (this)->_size; ++_i)          \
-                (this)->_elem_destructor(&(this)->_data[_i]);            \
-        }                                                                \
-        (this)->_size = (count);                                         \
-    }                                                                    \
+#define vec_pop_back(this) ({                            \
+    _VEC_VALID_CHECK(this);                              \
+    if (!vec_empty(this)) {                              \
+        if ((this)->_elem_destructor)                    \
+            (this)->_elem_destructor(vec_end(this) - 1); \
+        --((this)->_size);                               \
+    }                                                    \
 })
 
-#define vec_pop_back(this) ({                        \
-    _VEC_VALID_CHECK(this);                          \
-    if (!vec_empty(this)) {                          \
-        if ((this)->_elem_destructor != NULL)        \
-        (this)->_elem_destructor(vec_end(this) - 1); \
-        --((this)->_size);                           \
-    }                                                \
+#define vec_swap(this, target) ({                                    \
+    if ((this) != (target)) {                                        \
+        _VEC_VALID_CHECK(this);                                      \
+        _VEC_VALID_CHECK(target);                                    \
+        _VEC_COMP_CHECK(this, target);                               \
+        _SWAP((this)->_size, (target)->_size);                       \
+        _SWAP((this)->_capacity, (target)->_capacity);               \
+        _SWAP((this)->_data, (target)->_data);                       \
+        _SWAP((this)->_elem_destructor, (target)->_elem_destructor); \
+        (this)->_cdata = (this)->_data;                              \
+    }                                                                \
 })
 
-#define vec_swap(this, target) ({                                              \
-    if ((this) != (target)) {                                                  \
-        _VEC_VALID_CHECK(this);                                                \
-        _VEC_VALID_CHECK(target);                                              \
-        _VEC_COMP_CHECK(this, target);                                         \
-        _SWAP((this)->_size, (target)->_size);                                 \
-        _SWAP((this)->_capacity, (target)->_capacity);                         \
-        _SWAP((this)->_data, (target)->_data);                                 \
-        _SWAP((this)->_elem_def_constructor, (target)->_elem_def_constructor); \
-        _SWAP((this)->_elem_destructor, (target)->_elem_destructor);           \
-        (this)->_cdata = (this)->_data;                                        \
-    }                                                                          \
-})
-
-#define vec_move(this, target) ({                                        \
-    if ((this) != (target)) {                                            \
-        _VEC_VALID_CHECK(this);                                          \
-        _VEC_COMP_CHECK(this, target);                                   \
-        if ((target) == NULL)                                            \
-            (target) = malloc(sizeof(__typeof__(target)));               \
-        free((target)->_data);                                           \
-        (target)->_data = (this)->_data;                                 \
-        (target)->_cdata = (target)->_data;                              \
-        (target)->_size = (this)->_size;                                 \
-        (target)->_capacity = (this)->_capacity;                         \
-        (target)->_elem_def_constructor = (this)->_elem_def_constructor; \
-        (target)->_elem_destructor = (this)->_elem_destructor;           \
-        (this) = NULL;                                                   \
-    }                                                                    \
+#define vec_move(this, target) ({                              \
+    if ((this) != (target)) {                                  \
+        _VEC_VALID_CHECK(this);                                \
+        _VEC_COMP_CHECK(this, target);                         \
+        if ((target) == NULL)                                  \
+            (target) = malloc(sizeof(__typeof__(target)));     \
+        free((target)->_data);                                 \
+        (target)->_data = (this)->_data;                       \
+        (target)->_cdata = (target)->_data;                    \
+        (target)->_size = (this)->_size;                       \
+        (target)->_capacity = (this)->_capacity;               \
+        (target)->_elem_destructor = (this)->_elem_destructor; \
+        (this) = NULL;                                         \
+    }                                                          \
 })
 
 #define vec_copy(this, target) ({                                                    \
@@ -434,30 +408,9 @@
         (target)->_size = (this)->_size;                                             \
         memcpy((target)->_data, (this)->_data, _VEC_V_SIZE(this) * (target)->_size); \
         (target)->_cdata = (target)->_data;                                          \
-        (target)->_elem_def_constructor = (this)->_elem_def_constructor;             \
         (target)->_elem_destructor = (this)->_elem_destructor;                       \
     }                                                                                \
 })
-
-#define vec_set_def_constructor(this, constructor_ptr) ({                            \
-    _VEC_VALID_CHECK(this);                                                          \
-    _ASSERT((constructor_ptr) != NULL, "T (*constructor)() expected, but got null"); \
-    (this)->_elem_def_constructor = (constructor_ptr);                               \
-})
-
-#define vec_remove_elem_def_constructor(this) ({ \
-    _VEC_VALID_CHECK(this);                      \
-    (this)->_elem_def_constructor = NULL;        \
-})
-
-typedef struct {
-    size_t _size;
-    size_t _capacity;
-    void (*_elem_def_constructor)();
-    void (*_elem_destructor)(void*);
-    void* _data;
-    const void* _cdata;
-} __vec_unconst_hack;
 
 #define vec_set_destructor(this, destructor_ptr) ({                                          \
     _VEC_VALID_CHECK(this);                                                                  \
